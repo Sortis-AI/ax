@@ -1,0 +1,37 @@
+[package]
+name = "agent-x"
+version = "0.1.0"
+edition = "2021"
+description = "Agent-first Twitter/X CLI"
+license = "MIT"
+rust-version = "1.75"
+
+[[bin]]
+name = "ax"
+path = "src/main.rs"
+
+[dependencies]
+aes-gcm = "0.10.3"
+base64 = "0.22.1"
+chrono = { version = "0.4.44", features = ["serde"] }
+clap = { version = "4.6.0", features = ["derive"] }
+colored = "3.1.1"
+directories = "6.0.0"
+hmac = "0.12.1"
+indicatif = "0.18.4"
+open = "5.3.3"
+rand = "0.10.0"
+reqwest = { version = "0.13.2", features = ["json", "rustls", "form", "query"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+sha1 = "0.10.6"
+sha2 = "0.10.9"
+thiserror = "2.0.18"
+tokio = { version = "1.50.0", features = ["full"] }
+urlencoding = "2.1.3"
+
+[dev-dependencies]
+assert_cmd = "2.2.0"
+mockito = "1.7.2"
+predicates = "3.1.4"
+tempfile = "3.27.0"
