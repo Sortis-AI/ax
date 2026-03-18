@@ -27,9 +27,7 @@ impl XClient {
         let mut query = vec![("tweet.fields".to_string(), TWEET_FIELDS.to_string())];
         crate::api::pagination::apply_pagination_params(&mut query, max_results, next_token);
 
-        let resp = self
-            .get(&format!("/users/{me}/mentions"), &query)
-            .await?;
+        let resp = self.get(&format!("/users/{me}/mentions"), &query).await?;
         let api: ApiResponse<Vec<Tweet>> = resp.json().await?;
 
         Ok(TweetList {
@@ -48,9 +46,7 @@ impl XClient {
         let mut query = vec![("tweet.fields".to_string(), TWEET_FIELDS.to_string())];
         crate::api::pagination::apply_pagination_params(&mut query, max_results, next_token);
 
-        let resp = self
-            .get(&format!("/users/{me}/bookmarks"), &query)
-            .await?;
+        let resp = self.get(&format!("/users/{me}/bookmarks"), &query).await?;
         let api: ApiResponse<Vec<Tweet>> = resp.json().await?;
 
         Ok(TweetList {
@@ -99,9 +95,7 @@ impl XClient {
     pub async fn retweet(&self, tweet_id: &str) -> Result<MutationResult, AgentXError> {
         let me = self.get_me_id().await?;
         let body = serde_json::json!({ "tweet_id": tweet_id });
-        let resp = self
-            .post(&format!("/users/{me}/retweets"), body)
-            .await?;
+        let resp = self.post(&format!("/users/{me}/retweets"), body).await?;
         let val: serde_json::Value = resp.json().await?;
         let retweeted = val
             .get("data")
@@ -137,9 +131,7 @@ impl XClient {
     pub async fn bookmark_tweet(&self, tweet_id: &str) -> Result<MutationResult, AgentXError> {
         let me = self.get_me_id().await?;
         let body = serde_json::json!({ "tweet_id": tweet_id });
-        let resp = self
-            .post(&format!("/users/{me}/bookmarks"), body)
-            .await?;
+        let resp = self.post(&format!("/users/{me}/bookmarks"), body).await?;
         let val: serde_json::Value = resp.json().await?;
         let bookmarked = val
             .get("data")

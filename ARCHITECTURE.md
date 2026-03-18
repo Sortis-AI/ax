@@ -13,7 +13,7 @@ Clap-derive structs defining the command tree. Each domain has its own subcomman
 - `tweet.rs` — `TweetAction` (post, get, delete, reply, quote, search, metrics)
 - `user.rs` — `UserAction` (get, timeline, followers, following)
 - `self_ops.rs` — `SelfAction` (mentions, bookmarks, like/unlike, retweet/unretweet, bookmark/unbookmark)
-- `auth.rs` — `AuthAction` (login, status, logout)
+- `auth.rs` — `AuthAction` (login, callback, status, logout)
 
 ### API Layer (`src/api/`)
 
@@ -28,7 +28,7 @@ Clap-derive structs defining the command tree. Each domain has its own subcomman
 
 - `mod.rs` — `AuthProvider` enum (OAuth2, OAuth1, Bearer), `resolve_auth()` resolution
 - `oauth1.rs` — HMAC-SHA1 signature generation for OAuth 1.0a
-- `oauth2.rs` — PKCE flow (challenge gen, callback server, token exchange, refresh)
+- `oauth2.rs` — PKCE flow (challenge gen, callback server, token exchange, refresh), non-interactive split flow (`login_noninteractive`, `complete_callback`, `decode_callback_token`), `PendingAuth` persistence
 - `token_store.rs` — AES-256-GCM encrypted token storage at XDG_DATA_HOME
 - `refresh.rs` — Placeholder for future refresh scheduling
 
@@ -70,3 +70,14 @@ CLI args → Cli::parse() → RuntimeConfig
 ## Token storage
 
 Tokens encrypted with AES-256-GCM. Key derived from `/etc/machine-id` (Linux) via SHA-256. File permissions set to 0600.
+
+## Non-interactive OAuth flow
+
+For agents that can't open browsers or run callback servers:
+
+1. `ax auth login --no-browser` generates PKCE + state, saves `PendingAuth` (encrypted, 10 min TTL) to `$XDG_STATE_HOME/agent-x/pending_auth.json`, prints auth URL
+2. User authorizes on x.com → redirected to `https://oauth.cli.city/` (static site)
+3. Static site encodes `{code, state}` as base64, shows it to user with copy button
+4. `ax auth callback <base64-token>` decodes token, loads `PendingAuth`, validates state, exchanges code for tokens
+
+`NO_DNA=1` automatically activates non-interactive mode for `ax auth login`.

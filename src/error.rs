@@ -64,7 +64,10 @@ impl AgentXError {
                 "error_type": self.error_type(),
                 "timestamp": Utc::now().to_rfc3339(),
             });
-            eprintln!("{}", serde_json::to_string(&obj).unwrap_or_else(|_| self.to_string()));
+            eprintln!(
+                "{}",
+                serde_json::to_string(&obj).unwrap_or_else(|_| self.to_string())
+            );
         } else {
             eprintln!("Error: {self}");
         }

@@ -122,3 +122,60 @@ fn test_auth_logout() {
         .assert()
         .success();
 }
+
+#[test]
+fn test_auth_login_no_browser() {
+    Command::cargo_bin("ax")
+        .unwrap()
+        .args(["auth", "login", "--no-browser"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("x.com/i/oauth2/authorize"));
+}
+
+#[test]
+fn test_auth_login_no_browser_no_dna() {
+    Command::cargo_bin("ax")
+        .unwrap()
+        .args(["auth", "login", "--no-browser"])
+        .env("NO_DNA", "1")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"action_required\""))
+        .stdout(predicate::str::contains("\"url\""));
+}
+
+#[test]
+fn test_auth_callback_invalid_base64() {
+    Command::cargo_bin("ax")
+        .unwrap()
+        .args(["auth", "callback", "not-base64!!!"])
+        .assert()
+        .failure()
+        .code(2);
+}
+
+#[test]
+fn test_auth_callback_no_pending_auth() {
+    // Valid base64 encoding of {"code":"fake","state":"fake"}
+    Command::cargo_bin("ax")
+        .unwrap()
+        .args([
+            "auth",
+            "callback",
+            "eyJjb2RlIjoiZmFrZSIsInN0YXRlIjoiZmFrZSJ9",
+        ])
+        .assert()
+        .failure()
+        .code(2);
+}
+
+#[test]
+fn test_auth_callback_flags_no_pending_auth() {
+    Command::cargo_bin("ax")
+        .unwrap()
+        .args(["auth", "callback", "--code", "fake", "--state", "fake"])
+        .assert()
+        .failure()
+        .code(2);
+}

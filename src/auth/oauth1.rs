@@ -101,8 +101,7 @@ impl OAuth1Auth {
     /// requires per-request signing which is a known limitation.
     /// TODO: Pass method+url context for proper per-request signing.
     pub fn headers(&self) -> Result<HashMap<String, String>, AgentXError> {
-        let auth_header =
-            self.sign("GET", "https://api.x.com/2/users/me", &[])?;
+        let auth_header = self.sign("GET", "https://api.x.com/2/users/me", &[])?;
         let mut h = HashMap::new();
         h.insert("Authorization".to_string(), auth_header);
         Ok(h)

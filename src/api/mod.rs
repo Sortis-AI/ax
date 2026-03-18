@@ -36,10 +36,7 @@ impl XClient {
         Self::with_base_url("https://api.x.com/2".to_string(), auth)
     }
 
-    pub fn with_base_url(
-        base_url: String,
-        auth: AuthProvider,
-    ) -> Result<Self, AgentXError> {
+    pub fn with_base_url(base_url: String, auth: AuthProvider) -> Result<Self, AgentXError> {
         let http = Client::builder()
             .user_agent(USER_AGENT)
             .timeout(DEFAULT_TIMEOUT)
@@ -81,9 +78,7 @@ impl XClient {
                 builder = builder.query(q);
             }
             if let Some(b) = &body {
-                builder = builder
-                    .header("Content-Type", "application/json")
-                    .json(b);
+                builder = builder.header("Content-Type", "application/json").json(b);
             }
 
             let response = builder.send().await?;
@@ -106,9 +101,7 @@ impl XClient {
                     // First 401: try refreshing auth
                     if attempt == 0 {
                         if let Err(e) = self.auth.refresh().await {
-                            return Err(AgentXError::Auth(format!(
-                                "Token refresh failed: {e}"
-                            )));
+                            return Err(AgentXError::Auth(format!("Token refresh failed: {e}")));
                         }
                         continue;
                     }
@@ -143,11 +136,7 @@ impl XClient {
     }
 
     /// POST helper.
-    pub async fn post(
-        &self,
-        path: &str,
-        body: serde_json::Value,
-    ) -> Result<Response, AgentXError> {
+    pub async fn post(&self, path: &str, body: serde_json::Value) -> Result<Response, AgentXError> {
         self.request(Method::POST, path, None, Some(body)).await
     }
 

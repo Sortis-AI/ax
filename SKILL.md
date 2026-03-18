@@ -26,9 +26,10 @@ metadata:
 
 ```bash
 cargo install agent-x
-ax auth login          # OAuth 2.0 PKCE flow (opens browser)
-ax tweet post "hello"  # Post a tweet
-ax tweet get 123456    # Get a tweet by ID
+ax auth login                  # OAuth 2.0 PKCE flow (opens browser)
+ax auth login --no-browser     # Non-interactive: print URL, complete with callback
+ax tweet post "hello"          # Post a tweet
+ax tweet get 123456            # Get a tweet by ID
 ```
 
 ## Authentication
@@ -44,9 +45,18 @@ ax auth login
 
 Opens a browser for authorization. Tokens are encrypted and stored at `$XDG_DATA_HOME/agent-x/tokens.json`. Tokens auto-refresh (2h expiry, one-time-use refresh tokens).
 
-In NO_DNA mode, `ax auth login` outputs JSON with the authorization URL instead of opening a browser:
+In NO_DNA mode or with `--no-browser`, `ax auth login` outputs the authorization URL without starting a local callback server. The redirect goes to `https://oauth.cli.city/` which displays a base64-encoded token for the user to copy back.
+
 ```json
 {"action_required":"open_url","url":"https://x.com/i/oauth2/authorize?..."}
+```
+
+Complete the flow with `ax auth callback <token>`:
+
+```bash
+ax auth callback eyJjb2RlIjoiWFhYIiwic3RhdGUiOiJZWVkifQ==
+# Or with explicit flags:
+ax auth callback --code XXX --state YYY
 ```
 
 ### 2. OAuth 1.0a (env vars)
@@ -108,9 +118,12 @@ ax self unbookmark <id>              # Remove bookmark
 ### Auth operations
 
 ```bash
-ax auth login                         # OAuth 2.0 PKCE login
+ax auth login                         # OAuth 2.0 PKCE login (opens browser)
+ax auth login --no-browser            # Non-interactive: print URL, use callback
 ax auth login --scopes "tweet.read"   # Login with specific scopes
 ax auth login --port 9090             # Use custom callback port
+ax auth callback <base64-token>       # Complete non-interactive login
+ax auth callback --code X --state Y   # Complete login with explicit params
 ax auth status                        # Show auth status
 ax auth logout                        # Remove stored tokens
 ```

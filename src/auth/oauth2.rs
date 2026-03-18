@@ -1,7 +1,7 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::io::{BufRead, BufReader, Write as IoWrite};
 use std::net::TcpListener;
+use std::sync::Arc;
 
 use base64::Engine;
 use sha2::Digest;
@@ -12,6 +12,17 @@ use crate::error::AgentXError;
 
 const DEFAULT_CLIENT_ID: &str = "Q2Ffd1FnRkZQYnJhSDd4aFZhaEg6MTpjaQ";
 const DEFAULT_SCOPES: &str = "tweet.read tweet.write users.read like.read like.write bookmark.read bookmark.write follows.read follows.write offline.access";
+const REMOTE_REDIRECT_URI: &str = "https://oauth.cli.city/";
+
+/// Pending auth state saved between `login --no-browser` and `auth callback`.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct PendingAuth {
+    verifier: String,
+    state: String,
+    redirect_uri: String,
+    client_id: String,
+    created_at: i64,
+}
 
 pub struct OAuth2Auth {
     tokens: Arc<RwLock<StoredTokens>>,
@@ -65,9 +76,10 @@ impl OAuth2Auth {
     pub async fn refresh(&self) -> Result<(), AgentXError> {
         let (refresh_token, client_id) = {
             let tokens = self.tokens.read().await;
-            let rt = tokens.refresh_token.clone().ok_or_else(|| {
-                AgentXError::Auth("No refresh token available".to_string())
-            })?;
+            let rt = tokens
+                .refresh_token
+                .clone()
+                .ok_or_else(|| AgentXError::Auth("No refresh token available".to_string()))?;
             (rt, tokens.client_id.clone())
         };
 
@@ -94,8 +106,7 @@ fn generate_pkce() -> (String, String) {
 
 /// Resolve client ID: env var override, or compiled-in default.
 pub fn resolve_client_id() -> String {
-    std::env::var("X_CLIENT_ID")
-        .unwrap_or_else(|_| DEFAULT_CLIENT_ID.to_string())
+    std::env::var("X_CLIENT_ID").unwrap_or_else(|_| DEFAULT_CLIENT_ID.to_string())
 }
 
 /// Run the full OAuth 2.0 PKCE login flow.
@@ -148,6 +159,195 @@ pub async fn login(
     Ok(tokens)
 }
 
+/// Get the pending auth file path.
+fn pending_auth_path() -> Result<std::path::PathBuf, AgentXError> {
+    let dirs = directories::ProjectDirs::from("", "", "agent-x")
+        .ok_or_else(|| AgentXError::General("Cannot determine data directory".to_string()))?;
+    // Prefer state_dir (XDG_STATE_HOME), fall back to data_dir
+    let base = dirs.state_dir().unwrap_or_else(|| dirs.data_dir());
+    Ok(base.join("pending_auth.json"))
+}
+
+/// Save pending auth state (AES-256-GCM encrypted).
+fn save_pending_auth(pending: &PendingAuth) -> Result<(), AgentXError> {
+    use aes_gcm::aead::{Aead, KeyInit};
+    use aes_gcm::{Aes256Gcm, Nonce};
+
+    let path = pending_auth_path()?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let plaintext = serde_json::to_vec(pending)?;
+    let key = token_store::derive_key();
+    let cipher = Aes256Gcm::new_from_slice(&key)
+        .map_err(|e| AgentXError::General(format!("Cipher init error: {e}")))?;
+
+    let nonce_bytes: [u8; 12] = rand::random();
+    let nonce = Nonce::from_slice(&nonce_bytes);
+
+    let ciphertext = cipher
+        .encrypt(nonce, plaintext.as_ref())
+        .map_err(|e| AgentXError::General(format!("Encryption error: {e}")))?;
+
+    let mut data = Vec::with_capacity(12 + ciphertext.len());
+    data.extend_from_slice(&nonce_bytes);
+    data.extend_from_slice(&ciphertext);
+
+    std::fs::write(&path, &data)?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
+    }
+
+    Ok(())
+}
+
+/// Load and decrypt pending auth state. Enforces 10-minute TTL.
+fn load_pending_auth() -> Result<PendingAuth, AgentXError> {
+    use aes_gcm::aead::{Aead, KeyInit};
+    use aes_gcm::{Aes256Gcm, Nonce};
+
+    let path = pending_auth_path()?;
+    if !path.exists() {
+        return Err(AgentXError::Auth(
+            "No pending auth found. Run `ax auth login --no-browser` first.".to_string(),
+        ));
+    }
+
+    let data = std::fs::read(&path)?;
+    if data.len() < 13 {
+        return Err(AgentXError::General(
+            "Corrupt pending auth file".to_string(),
+        ));
+    }
+
+    let key = token_store::derive_key();
+    let cipher = Aes256Gcm::new_from_slice(&key)
+        .map_err(|e| AgentXError::General(format!("Cipher init error: {e}")))?;
+
+    let nonce = Nonce::from_slice(&data[..12]);
+    let plaintext = cipher.decrypt(nonce, &data[12..]).map_err(|_| {
+        AgentXError::General("Failed to decrypt pending auth (machine ID changed?)".to_string())
+    })?;
+
+    let pending: PendingAuth = serde_json::from_slice(&plaintext)?;
+
+    // Enforce 10-minute TTL
+    let now = chrono::Utc::now().timestamp();
+    if now - pending.created_at > 600 {
+        delete_pending_auth();
+        return Err(AgentXError::Auth(
+            "Pending auth expired (10 min TTL). Run `ax auth login --no-browser` again."
+                .to_string(),
+        ));
+    }
+
+    Ok(pending)
+}
+
+/// Delete pending auth file.
+fn delete_pending_auth() {
+    if let Ok(path) = pending_auth_path() {
+        let _ = std::fs::remove_file(path);
+    }
+}
+
+/// Non-interactive login: generate PKCE + state, save pending auth, print URL.
+pub fn login_noninteractive(
+    client_id: &str,
+    scopes: Option<&str>,
+    no_dna: bool,
+) -> Result<(), AgentXError> {
+    let (verifier, challenge) = generate_pkce();
+    let state = format!("{:032x}", rand::random::<u128>());
+    let scope = scopes.unwrap_or(DEFAULT_SCOPES);
+
+    let auth_url = format!(
+        "https://x.com/i/oauth2/authorize?response_type=code&client_id={}&redirect_uri={}&scope={}&state={}&code_challenge={}&code_challenge_method=S256",
+        urlencoding::encode(client_id),
+        urlencoding::encode(REMOTE_REDIRECT_URI),
+        urlencoding::encode(scope),
+        urlencoding::encode(&state),
+        urlencoding::encode(&challenge),
+    );
+
+    let pending = PendingAuth {
+        verifier,
+        state,
+        redirect_uri: REMOTE_REDIRECT_URI.to_string(),
+        client_id: client_id.to_string(),
+        created_at: chrono::Utc::now().timestamp(),
+    };
+    save_pending_auth(&pending)?;
+
+    if no_dna {
+        let action = serde_json::json!({
+            "action_required": "open_url",
+            "url": auth_url,
+        });
+        println!("{}", serde_json::to_string(&action).unwrap());
+    } else {
+        println!("Open this URL to authorize:\n{auth_url}");
+        println!("\nAfter authorizing, copy the token from oauth.cli.city and run:");
+        println!("  ax auth callback <token>");
+    }
+
+    Ok(())
+}
+
+/// Complete the non-interactive callback flow.
+pub async fn complete_callback(code: &str, state: &str) -> Result<StoredTokens, AgentXError> {
+    let pending = load_pending_auth()?;
+
+    if pending.state != state {
+        delete_pending_auth();
+        return Err(AgentXError::Auth(
+            "State mismatch — possible CSRF".to_string(),
+        ));
+    }
+
+    let tokens = exchange_code(
+        &pending.client_id,
+        code,
+        &pending.verifier,
+        &pending.redirect_uri,
+    )
+    .await?;
+
+    token_store::save_tokens(&tokens)?;
+    delete_pending_auth();
+
+    Ok(tokens)
+}
+
+/// Decode a base64-encoded callback token into (code, state).
+pub fn decode_callback_token(token: &str) -> Result<(String, String), AgentXError> {
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(token.trim())
+        .or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(token.trim()))
+        .map_err(|e| AgentXError::Auth(format!("Invalid base64 token: {e}")))?;
+
+    let json: serde_json::Value = serde_json::from_slice(&bytes)
+        .map_err(|e| AgentXError::Auth(format!("Invalid token JSON: {e}")))?;
+
+    let code = json
+        .get("code")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AgentXError::Auth("Token missing 'code' field".to_string()))?
+        .to_string();
+
+    let state = json
+        .get("state")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AgentXError::Auth("Token missing 'state' field".to_string()))?
+        .to_string();
+
+    Ok((code, state))
+}
+
 /// Blocking TCP listener that waits for the OAuth callback.
 fn receive_callback(port: u16, expected_state: &str) -> Result<String, AgentXError> {
     let listener = TcpListener::bind(format!("127.0.0.1:{port}"))
@@ -172,17 +372,16 @@ fn receive_callback(port: u16, expected_state: &str) -> Result<String, AgentXErr
         .nth(1)
         .ok_or_else(|| AgentXError::General("No query params in callback".to_string()))?;
 
-    let params: HashMap<&str, &str> = query
-        .split('&')
-        .filter_map(|p| p.split_once('='))
-        .collect();
+    let params: HashMap<&str, &str> = query.split('&').filter_map(|p| p.split_once('=')).collect();
 
     // Validate state
     let received_state = params
         .get("state")
         .ok_or_else(|| AgentXError::Auth("Missing state parameter".to_string()))?;
     if *received_state != expected_state {
-        return Err(AgentXError::Auth("State mismatch — possible CSRF".to_string()));
+        return Err(AgentXError::Auth(
+            "State mismatch — possible CSRF".to_string(),
+        ));
     }
 
     // Check for error

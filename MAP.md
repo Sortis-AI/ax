@@ -6,6 +6,7 @@
 - **ax binary** → parses args, resolves auth, makes API calls, renders output
 - **X API v2** (`api.x.com`) → Twitter/X backend
 - **Token store** (`$XDG_DATA_HOME/agent-x/tokens.json`) → encrypted OAuth 2.0 tokens
+- **oauth.cli.city** (`https://oauth.cli.city/`) → static site catching OAuth redirects, encodes callback params as base64 token
 
 ## Data flows
 
@@ -25,6 +26,20 @@ User/Agent
   │    → receive callback → exchange code → token
   │    → encrypt → $XDG_DATA_HOME/agent-x/tokens.json
   │
+  ├─ ax auth login --no-browser (non-interactive)
+  │    → generate PKCE challenge
+  │    → save PendingAuth → $XDG_STATE_HOME/agent-x/pending_auth.json
+  │    → print auth URL → exit
+  │    → user authorizes → x.com redirects → oauth.cli.city
+  │    → static site shows base64 token → user copies
+  │
+  ├─ ax auth callback <token>
+  │    → decode base64 → {code, state}
+  │    → load PendingAuth → validate state
+  │    → exchange code → token
+  │    → encrypt → $XDG_DATA_HOME/agent-x/tokens.json
+  │    → delete pending_auth.json
+  │
   └─ ax auth status
        → resolve_auth() → AuthProvider.method_name()
        → load_tokens() → expiry, scopes
@@ -42,6 +57,7 @@ User/Agent
 | Path | Purpose |
 |------|---------|
 | `$XDG_DATA_HOME/agent-x/tokens.json` | Encrypted OAuth 2.0 tokens (0600) |
+| `$XDG_STATE_HOME/agent-x/pending_auth.json` | Encrypted pending auth state (0600, 10 min TTL) |
 
 ## Environment variables
 

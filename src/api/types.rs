@@ -260,7 +260,11 @@ impl Renderable for TweetList {
     }
 
     fn render_plain(&self) -> String {
-        let mut lines: Vec<String> = self.tweets.iter().map(|t| t.render(OutputMode::Plain)).collect();
+        let mut lines: Vec<String> = self
+            .tweets
+            .iter()
+            .map(|t| t.render(OutputMode::Plain))
+            .collect();
         if let Some(token) = &self.next_token {
             lines.push(format!("next_token\t{token}"));
         }
@@ -268,7 +272,11 @@ impl Renderable for TweetList {
     }
 
     fn render_markdown(&self) -> String {
-        let mut parts: Vec<String> = self.tweets.iter().map(|t| t.render(OutputMode::Markdown)).collect();
+        let mut parts: Vec<String> = self
+            .tweets
+            .iter()
+            .map(|t| t.render(OutputMode::Markdown))
+            .collect();
         if let Some(token) = &self.next_token {
             parts.push(format!("\n---\n*Next page: `{token}`*"));
         }
@@ -293,7 +301,11 @@ impl Renderable for UserList {
     }
 
     fn render_plain(&self) -> String {
-        let mut lines: Vec<String> = self.users.iter().map(|u| u.render(OutputMode::Plain)).collect();
+        let mut lines: Vec<String> = self
+            .users
+            .iter()
+            .map(|u| u.render(OutputMode::Plain))
+            .collect();
         if let Some(token) = &self.next_token {
             lines.push(format!("next_token\t{token}"));
         }
@@ -301,7 +313,11 @@ impl Renderable for UserList {
     }
 
     fn render_markdown(&self) -> String {
-        let mut parts: Vec<String> = self.users.iter().map(|u| u.render(OutputMode::Markdown)).collect();
+        let mut parts: Vec<String> = self
+            .users
+            .iter()
+            .map(|u| u.render(OutputMode::Markdown))
+            .collect();
         if let Some(token) = &self.next_token {
             parts.push(format!("\n---\n*Next page: `{token}`*"));
         }

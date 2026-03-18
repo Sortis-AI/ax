@@ -24,14 +24,12 @@ fn token_path() -> Result<PathBuf, AgentXError> {
 }
 
 /// Derive an encryption key from machine ID (best-effort machine binding).
-fn derive_key() -> [u8; 32] {
+pub(crate) fn derive_key() -> [u8; 32] {
     use sha2::Digest;
 
     // Try /etc/machine-id (Linux), fall back to hostname
     let seed = fs::read_to_string("/etc/machine-id")
-        .unwrap_or_else(|_| {
-            "agent-x-default-key-seed".to_string()
-        });
+        .unwrap_or_else(|_| "agent-x-default-key-seed".to_string());
 
     let mut hasher = sha2::Sha256::new();
     hasher.update(b"agent-x-token-encryption-v1:");
@@ -93,9 +91,9 @@ pub fn load_tokens() -> Result<Option<StoredTokens>, AgentXError> {
         .map_err(|e| AgentXError::General(format!("Cipher init error: {e}")))?;
 
     let nonce = Nonce::from_slice(&data[..12]);
-    let plaintext = cipher
-        .decrypt(nonce, &data[12..])
-        .map_err(|_| AgentXError::General("Failed to decrypt tokens (machine ID changed?)".to_string()))?;
+    let plaintext = cipher.decrypt(nonce, &data[12..]).map_err(|_| {
+        AgentXError::General("Failed to decrypt tokens (machine ID changed?)".to_string())
+    })?;
 
     let tokens: StoredTokens = serde_json::from_slice(&plaintext)?;
     Ok(Some(tokens))

@@ -37,6 +37,8 @@ ax user get elonmusk
 Three methods, resolved in priority order:
 
 1. **OAuth 2.0 PKCE** — `ax auth login` (recommended, stored encrypted)
+   - Interactive: opens browser, local callback server
+   - Non-interactive: `ax auth login --no-browser` → prints URL → `ax auth callback <token>`
 2. **OAuth 1.0a** — env vars `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET`
 3. **Bearer token** — env var `X_BEARER_TOKEN` (read-only)
 
@@ -47,7 +49,7 @@ ax [--output json|plain|markdown|human] [--verbose]
 ├── tweet post|get|delete|reply|quote|search|metrics
 ├── user get|timeline|followers|following
 ├── self mentions|bookmarks|like|unlike|retweet|unretweet|bookmark|unbookmark
-└── auth login|status|logout
+└── auth login [--no-browser]|callback|status|logout
 ```
 
 See `ax --help`, `ax <command> --help`, or [SKILL.md](SKILL.md) for full usage.

@@ -9,8 +9,8 @@ use std::process::ExitCode;
 
 use clap::Parser;
 
-use crate::api::XClient;
 use crate::api::types::{AuthStatus, MutationResult};
+use crate::api::XClient;
 use crate::auth::token_store;
 use crate::cli::{Cli, Command};
 use crate::config::RuntimeConfig;
@@ -52,15 +52,39 @@ async fn handle_auth(
     config: &RuntimeConfig,
 ) -> Result<(), AgentXError> {
     match action {
-        cli::auth::AuthAction::Login { scopes, port } => {
+        cli::auth::AuthAction::Login {
+            scopes,
+            port,
+            no_browser,
+        } => {
             let client_id = auth::oauth2::resolve_client_id();
-            auth::oauth2::login(
-                &client_id,
-                scopes.as_deref(),
-                port,
-                config.no_dna,
-            )
-            .await?;
+            if config.no_dna || no_browser {
+                auth::oauth2::login_noninteractive(&client_id, scopes.as_deref(), config.no_dna)?;
+            } else {
+                auth::oauth2::login(&client_id, scopes.as_deref(), port, config.no_dna).await?;
+            }
+            Ok(())
+        }
+        cli::auth::AuthAction::Callback { token, code, state } => {
+            let (auth_code, auth_state) = if let Some(t) = token {
+                auth::oauth2::decode_callback_token(&t)?
+            } else {
+                match (code, state) {
+                    (Some(c), Some(s)) => (c, s),
+                    _ => {
+                        return Err(AgentXError::Auth(
+                            "Provide either a base64 token or both --code and --state".to_string(),
+                        ));
+                    }
+                }
+            };
+            auth::oauth2::complete_callback(&auth_code, &auth_state).await?;
+            let result = MutationResult {
+                action: "login".to_string(),
+                success: true,
+                id: None,
+            };
+            print_output(&result, config.output_mode);
             Ok(())
         }
         cli::auth::AuthAction::Status => {
@@ -75,13 +99,11 @@ async fn handle_auth(
                     };
                     // Add OAuth2-specific details if available
                     if let Ok(Some(tokens)) = token_store::load_tokens() {
-                        s.expires_at = tokens
-                            .expires_at
-                            .map(|ts| {
-                                chrono::DateTime::from_timestamp(ts, 0)
-                                    .map(|dt| dt.to_rfc3339())
-                                    .unwrap_or_else(|| ts.to_string())
-                            });
+                        s.expires_at = tokens.expires_at.map(|ts| {
+                            chrono::DateTime::from_timestamp(ts, 0)
+                                .map(|dt| dt.to_rfc3339())
+                                .unwrap_or_else(|| ts.to_string())
+                        });
                         if !tokens.scopes.is_empty() {
                             s.scopes = Some(tokens.scopes);
                         }

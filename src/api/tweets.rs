@@ -30,11 +30,10 @@ impl XClient {
         let body = serde_json::json!({ "text": text });
         let resp = self.post("/tweets", body).await?;
         let api: ApiResponse<Tweet> = resp.json().await?;
-        api.data
-            .ok_or_else(|| AgentXError::Api {
-                status: 0,
-                message: "No data in tweet post response".to_string(),
-            })
+        api.data.ok_or_else(|| AgentXError::Api {
+            status: 0,
+            message: "No data in tweet post response".to_string(),
+        })
     }
 
     pub async fn delete_tweet(&self, id: &str) -> Result<MutationResult, AgentXError> {
@@ -59,11 +58,10 @@ impl XClient {
         });
         let resp = self.post("/tweets", body).await?;
         let api: ApiResponse<Tweet> = resp.json().await?;
-        api.data
-            .ok_or_else(|| AgentXError::Api {
-                status: 0,
-                message: "No data in reply response".to_string(),
-            })
+        api.data.ok_or_else(|| AgentXError::Api {
+            status: 0,
+            message: "No data in reply response".to_string(),
+        })
     }
 
     pub async fn quote_tweet(&self, id: &str, text: &str) -> Result<Tweet, AgentXError> {
@@ -73,11 +71,10 @@ impl XClient {
         });
         let resp = self.post("/tweets", body).await?;
         let api: ApiResponse<Tweet> = resp.json().await?;
-        api.data
-            .ok_or_else(|| AgentXError::Api {
-                status: 0,
-                message: "No data in quote response".to_string(),
-            })
+        api.data.ok_or_else(|| AgentXError::Api {
+            status: 0,
+            message: "No data in quote response".to_string(),
+        })
     }
 
     pub async fn search_tweets(

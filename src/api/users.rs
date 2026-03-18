@@ -1,14 +1,17 @@
-use crate::api::types::{ApiResponse, TweetList, User, UserList, Tweet};
+use crate::api::types::{ApiResponse, Tweet, TweetList, User, UserList};
 use crate::api::XClient;
 use crate::error::AgentXError;
 
-const USER_FIELDS: &str = "id,name,username,description,created_at,public_metrics,verified,profile_image_url";
+const USER_FIELDS: &str =
+    "id,name,username,description,created_at,public_metrics,verified,profile_image_url";
 const TWEET_FIELDS: &str = "id,text,author_id,created_at,public_metrics,conversation_id";
 
 impl XClient {
     pub async fn get_user(&self, username: &str) -> Result<User, AgentXError> {
         let query = vec![("user.fields".to_string(), USER_FIELDS.to_string())];
-        let resp = self.get(&format!("/users/by/username/{username}"), &query).await?;
+        let resp = self
+            .get(&format!("/users/by/username/{username}"), &query)
+            .await?;
         let api: ApiResponse<User> = resp.json().await?;
         api.data
             .ok_or_else(|| AgentXError::NotFound(format!("User @{username} not found")))
@@ -34,7 +37,9 @@ impl XClient {
         let mut query = vec![("tweet.fields".to_string(), TWEET_FIELDS.to_string())];
         crate::api::pagination::apply_pagination_params(&mut query, max_results, next_token);
 
-        let resp = self.get(&format!("/users/{user_id}/tweets"), &query).await?;
+        let resp = self
+            .get(&format!("/users/{user_id}/tweets"), &query)
+            .await?;
         let api: ApiResponse<Vec<Tweet>> = resp.json().await?;
 
         Ok(TweetList {
