@@ -9,7 +9,7 @@ license: GPL-3.0
 compatibility: Requires X API credentials (OAuth 2.0 or OAuth 1.0a). Binary: ax. Install via cargo install agent-x.
 metadata:
   author: chris
-  version: "0.3.0"
+  version: "0.3.1"
   tags: "twitter,x,social-media,api,cli"
 ---
 

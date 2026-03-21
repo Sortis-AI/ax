@@ -10,7 +10,7 @@ use tokio::sync::RwLock;
 use crate::auth::token_store::{self, StoredTokens};
 use crate::error::AgentXError;
 
-const DEFAULT_CLIENT_ID: &str = "Q2Ffd1FnRkZQYnJhSDd4aFZhaEg6MTpjaQ";
+const DEFAULT_CLIENT_ID: &str = "TzFNRnQwemhmRElFcmFHT05PSGg6MTpjaQ";
 const DEFAULT_SCOPES: &str = "tweet.read tweet.write users.read like.read like.write bookmark.read bookmark.write follows.read follows.write offline.access";
 const REMOTE_REDIRECT_URI: &str = "https://oauth.cli.city/";
 

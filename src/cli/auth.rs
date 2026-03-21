@@ -6,7 +6,7 @@ pub enum AuthAction {
         #[arg(long)]
         scopes: Option<String>,
         /// Local callback server port
-        #[arg(long, default_value = "8477")]
+        #[arg(long, default_value = "21847")]
         port: u16,
         /// Print auth URL and exit without starting local callback server
         #[arg(long)]
