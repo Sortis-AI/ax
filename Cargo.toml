@@ -1,6 +1,6 @@
 [package]
 name = "agent-x"
-version = "0.5.1"
+version = "0.5.3"
 edition = "2021"
 description = "Agent-first Twitter/X CLI"
 license = "GPL-3.0"

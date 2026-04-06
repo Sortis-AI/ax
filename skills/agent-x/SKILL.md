@@ -9,7 +9,7 @@ license: GPL-3.0
 compatibility: Requires Rust toolchain (cargo) or pre-built binary. Requires X API credentials (OAuth 2.0, OAuth 1.0a, or Bearer token).
 metadata:
   author: chris
-  version: "0.5.1"
+  version: "0.5.3"
   tags: "twitter,x,social-media,api,cli"
 ---
 
@@ -81,6 +81,34 @@ In NO_DNA mode, `ax auth login` automatically uses the non-interactive flow and 
 ```
 
 Tokens are encrypted at `$XDG_DATA_HOME/agent-x/tokens.json` with 2h expiry and automatic refresh.
+
+#### Do not run `ax auth login` when already authenticated
+
+`ax auth login` will fail with an error if stored tokens already exist. This is intentional — running login twice without logging out first causes a state mismatch that makes the second callback fail silently. If you receive this error, **stop**. You are already authenticated. Verify with `ax auth status`. Only proceed with a new login flow after running `ax auth logout`.
+
+#### Callback failure is a hard stop
+
+**If `ax auth callback` fails for any reason, stop immediately.** Do not attempt to:
+- Decode the base64 token yourself
+- Re-encode it in a different format
+- Use `--code` and `--state` flags as an alternative
+
+None of these will work. The token is correct or it isn't — the failure is in the auth state, not the encoding. Trying to manipulate the token wastes effort and cannot succeed.
+
+**What to do instead:** Tell the user the auth failed, show them the exact error message, and ask them to restart the flow:
+
+```bash
+ax auth login --no-browser
+```
+
+Then repeat the process from the top.
+
+#### Common failure reasons
+
+- **Expired** — Auth state expires after 10 minutes from when `ax auth login --no-browser` ran. If the user was slow to authorize or paste the token, restart the flow.
+- **Stale state** — If `ax auth login --no-browser` was run more than once before `ax auth callback`, only the most recent token is valid. Show the user the error and restart.
+- **Token exchange failure** — If the callback fails with `"Token exchange failed: ..."`, the authorization code from X was rejected. Codes are single-use and expire within seconds. Do not retry `ax auth callback` with the same token — the code is dead. Restart from `ax auth login --no-browser`.
+- **Whitespace in token** — Pass the token as a single unbroken string with no spaces, newlines, or markdown formatting characters.
 
 ### 2. OAuth 1.0a (env vars)
 

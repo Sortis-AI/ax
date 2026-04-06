@@ -88,6 +88,13 @@ async fn handle_auth(
             port,
             no_browser,
         } => {
+            // Block login if valid stored tokens already exist — prevents silent overwrite
+            // and the state-mismatch failure that follows double-login.
+            if let Ok(Some(_)) = auth::token_store::load_tokens() {
+                return Err(AgentXError::Auth(
+                    "Already authenticated via oauth2. Run `ax auth logout` first, then re-run `ax auth login`.".to_string(),
+                ));
+            }
             let client_id = auth::oauth2::resolve_client_id();
             if config.no_dna || no_browser {
                 auth::oauth2::login_noninteractive(&client_id, scopes.as_deref(), config.no_dna)?;
